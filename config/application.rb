@@ -2,7 +2,7 @@ require File.expand_path('../boot', __FILE__)
 
 require 'rails/all'
 
-Bundler.require(:default, Rails.env)
+Bundler.require(:default, :optional, Rails.env)
 
 Dotenv.overload File.expand_path('../../spec/env.test', __FILE__) if Rails.env.test?
 
