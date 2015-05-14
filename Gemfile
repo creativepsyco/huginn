@@ -50,7 +50,7 @@ def optional
 end
 
 # Let optional gems optional
-Bundler.settings.without += [:optional]
+Bundler.settings.without |= [:optional]
 
 # Essential gems.
 
