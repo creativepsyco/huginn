@@ -4,8 +4,8 @@
 # the Agent types you don't need and avoid loading their dependencies.
 # It is also a good idea to not install gems only for development on
 # production.  To do this, list the gem groups you want to opt out of
-# after `--without` when you run `bundle` on your running environment.
-# e.g.:
+# after `--without` when you run `bundle` on your production
+# environment.  e.g.:
 #
 #     bundle install --deployment --without development test basecamp human_task jabber mqtt weibo
 #
