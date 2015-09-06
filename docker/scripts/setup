@@ -5,9 +5,11 @@ set -e
 
 # Huginn is 12factor aware, embrace that fact for use inside of docker
 ON_HEROKU=${ON_HEROKU:-true}
+echo "${ON_HEROKU}"
+export ON_HEROKU=true
 
 # Shallow clone the huginn project repo
-git clone --depth 1 https://github.com/cantino/huginn /app
+git clone --depth 1 https://github.com/creativepsyco/huginn /app
 
 cd /app
 
@@ -25,15 +27,16 @@ sudo -u huginn -H mkdir -p tmp/pids tmp/cache tmp/sockets log
 chmod -R u+rwX log tmp
 
 # install gems required by Huginn, use local cache if available
+
 if [ -d "/scripts/cache" ]; then
   mv /scripts/cache vendor/
   chown -R huginn:huginn vendor/cache
 fi
-sudo -u huginn -H bundle install --deployment --without test
+sudo -u huginn -H bundle install --without development:test --deployment
+# sudo -u huginn -H bundle install --deployment --without test
 
 # silence setlocale message (THANKS DEBIAN!)
 cat > /etc/default/locale <<EOF
 LC_ALL=en_US.UTF-8
 LANG=en_US.UTF-8
 EOF
-

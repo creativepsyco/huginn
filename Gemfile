@@ -148,7 +148,7 @@ def on_heroku
   end
 end
 
-on_heroku do
-  gem 'pg'
-  gem 'rails_12factor', group: :production
-end
+# on_heroku do
+gem 'pg'
+gem 'rails_12factor', group: :production
+# end

@@ -33,4 +33,3 @@ VOLUME /var/lib/mysql
 EXPOSE 3000
 
 CMD ["/scripts/init"]
-
