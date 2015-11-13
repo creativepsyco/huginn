@@ -1,4 +1,4 @@
-require 'spec_helper'
+require 'rails_helper'
 
 describe Agents::WebsiteAgent do
   describe "checking without basic auth" do
@@ -227,16 +227,46 @@ describe Agents::WebsiteAgent do
         event = Event.last
         expect(event.payload['version']).to eq(2)
       end
+
+      it 'should either avoid or support a raw deflate stream (#1018)' do
+        stub_request(:any, /deflate/).with(headers: { 'Accept-Encoding' => /\A(?!.*deflate)/ }).
+          to_return(body: 'hello',
+                    status: 200)
+        stub_request(:any, /deflate/).with(headers: { 'Accept-Encoding' => /deflate/ }).
+          to_return(body: "\xcb\x48\xcd\xc9\xc9\x07\x00\x06\x2c".b,
+                    headers: { 'Content-Encoding' => 'deflate' },
+                    status: 200)
+
+        site = {
+          'name' => 'Some Response',
+          'expected_update_period_in_days' => '2',
+          'type' => 'text',
+          'url' => 'http://deflate',
+          'mode' => 'on_change',
+          'extract' => {
+            'content' => { 'regexp' => '.+', 'index' => 0 }
+          }
+        }
+        checker = Agents::WebsiteAgent.new(name: "Deflate Test", options: site)
+        checker.user = users(:bob)
+        checker.save!
+
+        expect {
+          checker.check
+        }.to change { Event.count }.by(1)
+        event = Event.last
+        expect(event.payload['content']).to eq('hello')
+      end
     end
 
     describe 'encoding' do
       it 'should be forced with force_encoding option' do
         huginn = "\u{601d}\u{8003}"
-        stub_request(:any, /no-encoding/).to_return(:body => {
-            :value => huginn,
-          }.to_json.encode(Encoding::EUC_JP), :headers => {
+        stub_request(:any, /no-encoding/).to_return(body: {
+            value: huginn,
+          }.to_json.encode(Encoding::EUC_JP).b, headers: {
             'Content-Type' => 'application/json',
-          }, :status => 200)
+          }, status: 200)
         site = {
           'name' => "Some JSON Response",
           'expected_update_period_in_days' => "2",
@@ -248,22 +278,22 @@ describe Agents::WebsiteAgent do
           },
           'force_encoding' => 'EUC-JP',
         }
-        checker = Agents::WebsiteAgent.new(:name => "No Encoding Site", :options => site)
+        checker = Agents::WebsiteAgent.new(name: "No Encoding Site", options: site)
         checker.user = users(:bob)
         checker.save!
 
-        checker.check
+        expect { checker.check }.to change { Event.count }.by(1)
         event = Event.last
         expect(event.payload['value']).to eq(huginn)
       end
 
       it 'should be overridden with force_encoding option' do
         huginn = "\u{601d}\u{8003}"
-        stub_request(:any, /wrong-encoding/).to_return(:body => {
-            :value => huginn,
-          }.to_json.encode(Encoding::EUC_JP), :headers => {
+        stub_request(:any, /wrong-encoding/).to_return(body: {
+            value: huginn,
+          }.to_json.encode(Encoding::EUC_JP).b, headers: {
             'Content-Type' => 'application/json; UTF-8',
-          }, :status => 200)
+          }, status: 200)
         site = {
           'name' => "Some JSON Response",
           'expected_update_period_in_days' => "2",
@@ -275,11 +305,63 @@ describe Agents::WebsiteAgent do
           },
           'force_encoding' => 'EUC-JP',
         }
-        checker = Agents::WebsiteAgent.new(:name => "Wrong Encoding Site", :options => site)
+        checker = Agents::WebsiteAgent.new(name: "Wrong Encoding Site", options: site)
         checker.user = users(:bob)
         checker.save!
 
-        checker.check
+        expect { checker.check }.to change { Event.count }.by(1)
+        event = Event.last
+        expect(event.payload['value']).to eq(huginn)
+      end
+
+      it 'should be determined by charset in Content-Type' do
+        huginn = "\u{601d}\u{8003}"
+        stub_request(:any, /charset-euc-jp/).to_return(body: {
+            value: huginn,
+          }.to_json.encode(Encoding::EUC_JP), headers: {
+            'Content-Type' => 'application/json; charset=EUC-JP',
+          }, status: 200)
+        site = {
+          'name' => "Some JSON Response",
+          'expected_update_period_in_days' => "2",
+          'type' => "json",
+          'url' => "http://charset-euc-jp.example.com",
+          'mode' => 'on_change',
+          'extract' => {
+            'value' => { 'path' => 'value' },
+          },
+        }
+        checker = Agents::WebsiteAgent.new(name: "Charset reader", options: site)
+        checker.user = users(:bob)
+        checker.save!
+
+        expect { checker.check }.to change { Event.count }.by(1)
+        event = Event.last
+        expect(event.payload['value']).to eq(huginn)
+      end
+
+      it 'should default to UTF-8 when unknown charset is found' do
+        huginn = "\u{601d}\u{8003}"
+        stub_request(:any, /charset-unknown/).to_return(body: {
+            value: huginn,
+          }.to_json.b, headers: {
+            'Content-Type' => 'application/json; charset=unicode',
+          }, status: 200)
+        site = {
+          'name' => "Some JSON Response",
+          'expected_update_period_in_days' => "2",
+          'type' => "json",
+          'url' => "http://charset-unknown.example.com",
+          'mode' => 'on_change',
+          'extract' => {
+            'value' => { 'path' => 'value' },
+          },
+        }
+        checker = Agents::WebsiteAgent.new(name: "Charset reader", options: site)
+        checker.user = users(:bob)
+        checker.save!
+
+        expect { checker.check }.to change { Event.count }.by(1)
         event = Event.last
         expect(event.payload['value']).to eq(huginn)
       end
@@ -499,6 +581,41 @@ describe Agents::WebsiteAgent do
         end
       end
 
+      describe "XML with cdata" do
+        before do
+          stub_request(:any, /cdata_rss/).to_return(
+            body: File.read(Rails.root.join("spec/data_fixtures/cdata_rss.atom")),
+            status: 200
+          )
+
+          @checker = Agents::WebsiteAgent.new(name: 'cdata', options: {
+            'name' => 'CDATA',
+            'expected_update_period_in_days' => '2',
+            'type' => 'xml',
+            'url' => 'http://example.com/cdata_rss.atom',
+            'mode' => 'on_change',
+            'extract' => {
+              'author' => { 'xpath' => '/feed/entry/author/name', 'value' => './/text()'},
+              'title' => { 'xpath' => '/feed/entry/title', 'value' => './/text()' },
+              'content' => { 'xpath' => '/feed/entry/content', 'value' => './/text()' },
+            }
+          }, keep_events_for: 2.days)
+          @checker.user = users(:bob)
+          @checker.save!
+        end
+
+        it "works with XPath" do
+          expect {
+            @checker.check
+          }.to change { Event.count }.by(10)
+          event = Event.last
+          expect(event.payload['author']).to eq('bill98')
+          expect(event.payload['title']).to eq('Help: Rainmeter Skins • Test if Today is Between 2 Dates')
+          expect(event.payload['content']).to start_with('Can I ')
+        end
+
+      end
+
       describe "JSON" do
         it "works with paths" do
           json = {
@@ -671,6 +788,19 @@ fire: hot
         @checker.receive([@event])
 
         expect(stub).to have_been_requested
+      end
+
+      it "should allow url_from_event to be an array of urls" do
+        stub1 = stub_request(:any, 'http://example.org/?url=http%3A%2F%2Fxkcd.com')
+        stub2 = stub_request(:any, 'http://google.org/?url=http%3A%2F%2Fxkcd.com')
+
+        @checker.options = @valid_options.merge(
+          'url_from_event' => ['http://example.org/?url={{url | uri_escape}}', 'http://google.org/?url={{url | uri_escape}}']
+        )
+        @checker.receive([@event])
+
+        expect(stub1).to have_been_requested
+        expect(stub2).to have_been_requested
       end
 
       it "should interpolate values from incoming event payload" do

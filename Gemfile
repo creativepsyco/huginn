@@ -29,7 +29,7 @@ gem 'twitter-stream', github: 'cantino/twitter-stream', branch: 'huginn'
 gem 'omniauth-twitter'
 
 # Tumblr Agents
-gem 'tumblr_client', github: 'knu/tumblr_client', branch: 'patch-1'
+gem 'tumblr_client', github: 'tumblr/tumblr_client', branch: 'master'  # '>= 0.8.5'
 gem 'omniauth-tumblr'
 
 # Dropbox Agents
@@ -39,9 +39,12 @@ gem 'omniauth-dropbox'
 # UserLocationAgent
 gem 'haversine'
 
+# EvernoteAgent
+gem 'omniauth-evernote'
+gem 'evernote_oauth'
+
 # Optional Services.
 gem 'omniauth-37signals'          # BasecampAgent
-# gem 'omniauth-github'
 gem 'omniauth-wunderlist', github: 'wunderlist/omniauth-wunderlist', ref: 'd0910d0396107b9302aa1bc50e74bb140990ccb8'
 
 # Bundler <1.5 does not recognize :x64_mingw as a valid platform name.
@@ -64,7 +67,7 @@ gem 'devise', '~> 3.4.0'
 gem 'dotenv-rails', '~> 2.0.1'
 gem 'em-http-request', '~> 1.1.2'
 gem 'faraday', '~> 0.9.0'
-gem 'faraday_middleware', '>= 0.10.0'
+gem 'faraday_middleware', github: 'lostisland/faraday_middleware', branch: 'master'  # '>= 0.10.1'
 gem 'feed-normalizer'
 gem 'font-awesome-sass', '~> 4.3.2'
 gem 'foreman', '~> 0.63.0'
